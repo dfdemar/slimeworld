@@ -10,6 +10,16 @@
     --good: #10b981; /* green */
     --bad: #ef4444; /* red */
     --warn: #f59e0b; /* amber */
+
+    /* Trait bar colors */
+    --trait-water: #3b82f6;
+    --trait-light: #f59e0b;
+    --trait-photo: #10b981;
+    --trait-transport: #8b5cf6;
+    --trait-predation: #ef4444;
+    --trait-defense: #06b6d4;
+    --trait-spore: #ec4899;
+    --trait-flow: #6366f1;
 }
 
 * {
@@ -132,10 +142,13 @@ header h1 {
 }
 
 .panel h2 {
-    font-size: 14px;
+    font-size: 11px;
+    text-transform: uppercase;
     margin: 0 0 10px 0;
     color: #c7d2fe;
-    letter-spacing: 0.4px
+    letter-spacing: 1.2px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent);
 }
 
 .row {
@@ -152,7 +165,52 @@ header h1 {
 }
 
 input[type=range] {
-    width: 160px
+    width: 160px;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: linear-gradient(90deg, #1a2240, #263050);
+    border-radius: 2px;
+    outline: none;
+}
+
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 4px rgba(124, 58, 237, 0.4);
+    transition: box-shadow 0.2s ease;
+}
+
+input[type=range]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.6);
+}
+
+input[type=range]::-moz-range-track {
+    height: 4px;
+    background: linear-gradient(90deg, #1a2240, #263050);
+    border-radius: 2px;
+    border: none;
+}
+
+input[type=range]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 4px rgba(124, 58, 237, 0.4);
+}
+
+input[type=range]:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.3);
+    border-radius: 2px;
 }
 
 .controls-grid {
@@ -321,8 +379,8 @@ button:disabled {
     font-size: 12px;
     color: #cbd5e1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px
+    grid-template-columns: 1fr;
+    gap: 4px
 }
 
 .rtgrid {
@@ -536,7 +594,7 @@ button:disabled {
     position: fixed;
     top: 8px;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(-100%);
     background: rgba(15, 23, 42, 0.95);
     border: 1px solid #2a3a66;
     color: #dbeafe;
@@ -544,7 +602,19 @@ button:disabled {
     border-radius: 12px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     display: none;
-    z-index: 9999
+    z-index: 9999;
+    opacity: 0;
+    backdrop-filter: blur(8px);
+}
+
+#alert.show {
+    display: block;
+    animation: slideDown 0.3s ease forwards;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateX(-50%) translateY(-100%); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 #alert.warn {
@@ -568,4 +638,167 @@ canvas#miniView {
     border: 1px solid #1f2a44;
     border-radius: 10px;
     background: linear-gradient(180deg, #0e1424, #0a1220)
+}
+
+/* Stat value flash on change */
+.stat-value {
+    transition: color 0.4s ease;
+}
+
+.stat-value.flash {
+    color: var(--accent-2);
+}
+
+/* ===== Trait Bars (Inspector) ===== */
+.trait-bar-container {
+    margin-bottom: 6px;
+}
+
+.trait-bar-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 3px;
+}
+
+.trait-bar-label {
+    color: var(--muted);
+}
+
+.trait-bar-pct {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.trait-bar {
+    height: 6px;
+    background: #0c1426;
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+}
+
+.trait-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    width: 0;
+    transition: width 0.6s ease-out;
+    position: relative;
+}
+
+.trait-bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.trait-bar-container:hover .trait-bar-fill::after {
+    animation: shimmer 1.2s ease-in-out;
+}
+
+@keyframes shimmer {
+    0% { opacity: 0; transform: translateX(-100%); }
+    50% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(100%); }
+}
+
+/* ===== Breakdown Bars ===== */
+.breakdown-item {
+    position: relative;
+    overflow: hidden;
+}
+
+.breakdown-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    border-radius: 4px;
+    opacity: 0.15;
+    transition: width 0.6s ease-out;
+    z-index: 0;
+}
+
+.breakdown-name, .breakdown-count {
+    position: relative;
+    z-index: 1;
+}
+
+/* ===== Population Chart ===== */
+.pop-chart-section {
+    margin-top: 12px;
+}
+
+#popChart {
+    width: 100%;
+    height: 120px;
+    background: linear-gradient(180deg, #0e1424, #0a1220);
+    border: 1px solid #1c2847;
+    border-radius: 8px;
+}
+
+/* ===== Health Indicators ===== */
+.health-section {
+    margin-top: 12px;
+}
+
+.health-indicators {
+    display: flex;
+    gap: 8px;
+}
+
+.health-badge {
+    flex: 1;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    transition: background 0.4s ease, border-color 0.4s ease;
+}
+
+.health-badge.good {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.health-badge.moderate {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+.health-badge.poor {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+.health-badge.pulse {
+    animation: healthPulse 0.6s ease;
+}
+
+@keyframes healthPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.health-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.health-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
 }

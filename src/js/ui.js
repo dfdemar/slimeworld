@@ -3,6 +3,39 @@ let needRedraw = true;
 let stepping = false;
 let last = 0;
 
+/* ===== Archetype & Trait Color Maps ===== */
+const ARCHETYPE_COLORS = {
+    MAT: '#10b981', CORD: '#8b5cf6', TOWER: '#f59e0b',
+    FLOAT: '#3b82f6', EAT: '#ef4444', SCOUT: '#06b6d4'
+};
+
+const TRAIT_COLORS = {
+    water_need: '#3b82f6', light_use: '#f59e0b', photosym: '#10b981',
+    transport: '#8b5cf6', predation: '#ef4444', defense: '#06b6d4',
+    spore: '#ec4899', flow: '#6366f1'
+};
+
+const TRAIT_LABELS = {
+    water_need: 'Water Need', light_use: 'Light Use', photosym: 'Photosymbiosis',
+    transport: 'Transport', predation: 'Predation', defense: 'Defense',
+    spore: 'Spore Rate', flow: 'Flow'
+};
+
+/* ===== Population History Ring Buffer ===== */
+const PopHistory = {
+    maxLen: 200,
+    data: [],
+    push(snapshot) {
+        this.data.push(snapshot);
+        if (this.data.length > this.maxLen) this.data.shift();
+    },
+    clear() {
+        this.data = [];
+    }
+};
+
+let _popChartFrame = 0;
+
 function formatAge(ticks) {
     // Convert simulation ticks to more meaningful time units
     // Assuming 1 tick = ~1 hour in simulation time
@@ -48,6 +81,7 @@ function reset() {
     document.getElementById('btnPause').textContent = '⏸️ Pause';
     resize();
     clearOverlayCache(); // Clear overlay cache for new world
+    PopHistory.clear();
     needRedraw = true;
 }
 
@@ -102,12 +136,27 @@ function updateInspector(c) {
         '</div>' +
         '<div style="margin-top:6px" class="small">Parent: ' + (c.parent ?? '—') + ' • Kids: <span id="inspectorKids">' + c.kids.length + '</span></div>';
 
-    function bar(label, val) {
+    // Build animated trait bars
+    stats.innerHTML = '';
+    const traitKeys = ['water_need', 'light_use', 'photosym', 'transport', 'predation', 'defense', 'spore', 'flow'];
+    traitKeys.forEach(key => {
+        const val = c.traits[key];
         const w = Math.round(100 * clamp(val, 0, 1));
-        return '<div class="stat"><div style="display:flex; justify-content:space-between"><span>' + label + '</span><span>' + w + '%</span></div><div style="height:8px;background:#0c1426;border-radius:999px;margin-top:6px;overflow:hidden"><div style="width:' + w + '%;height:100%;background:linear-gradient(90deg, var(--accent), var(--accent-2))"></div></div></div>'
-    }
-
-    stats.innerHTML = bar('Water Need', c.traits.water_need) + bar('Light Use', c.traits.light_use) + bar('Photosymbiosis', c.traits.photosym) + bar('Transport', c.traits.transport) + bar('Predation', c.traits.predation) + bar('Defense', c.traits.defense) + bar('Spore Rate', c.traits.spore) + bar('Flow', c.traits.flow);
+        const color = TRAIT_COLORS[key] || '#7c3aed';
+        const label = TRAIT_LABELS[key] || key;
+        const container = document.createElement('div');
+        container.className = 'trait-bar-container';
+        container.innerHTML =
+            '<div class="trait-bar-header"><span class="trait-bar-label">' + label + '</span><span class="trait-bar-pct">' + w + '%</span></div>' +
+            '<div class="trait-bar"><div class="trait-bar-fill" data-width="' + w + '" style="width:0;background:linear-gradient(90deg, ' + color + ', ' + color + 'aa)"></div></div>';
+        stats.appendChild(container);
+    });
+    // Animate bars in on next frame
+    requestAnimationFrame(() => {
+        stats.querySelectorAll('.trait-bar-fill').forEach(fill => {
+            fill.style.width = fill.dataset.width + '%';
+        });
+    });
     
     // Add action buttons
     actions.innerHTML = `
@@ -203,6 +252,20 @@ function refreshInspectorRealtime(force = false) {
 /* ===== Live Stats & Metrics ===== */
 let lastTickTime = 0;
 let ticksInSecond = [];
+let _lastHealthDiversity = '';
+let _lastHealthStability = '';
+
+function flashStat(el, newText) {
+    if (!el) return;
+    if (el.textContent !== newText) {
+        el.textContent = newText;
+        if (el.classList) {
+            el.classList.add('flash');
+            clearTimeout(el._flashT);
+            el._flashT = setTimeout(() => el.classList.remove('flash'), 400);
+        }
+    }
+}
 
 function refreshLiveStats() {
     // Track tick rate
@@ -213,61 +276,215 @@ function refreshLiveStats() {
     }
     lastTickTime = now;
 
-    // Update colony count
-    document.getElementById('statColonies').textContent = World.colonies.length;
+    // Update stats with flash effect
+    flashStat(document.getElementById('statColonies'), '' + World.colonies.length);
 
-    // Calculate total biomass
     let totalBiomass = 0;
     for (let i = 0; i < World.biomass.length; i++) {
         totalBiomass += World.biomass[i];
     }
-    document.getElementById('statBiomass').textContent = totalBiomass.toFixed(1);
+    flashStat(document.getElementById('statBiomass'), totalBiomass.toFixed(1));
 
-    // Update tick rate
     const tickRate = ticksInSecond.length;
     document.getElementById('statTickRate').textContent = tickRate + '/s';
 
-    // Update max generation
     const maxGen = World.colonies.reduce((max, c) => Math.max(max, c.gen || 0), 0);
-    document.getElementById('statMaxGen').textContent = maxGen;
+    flashStat(document.getElementById('statMaxGen'), '' + maxGen);
 
-    // Update archetype breakdown
+    // Build archetype breakdown
     const breakdown = {};
     World.colonies.forEach(c => {
         const type = c.type || 'Unknown';
         if (!breakdown[type]) {
-            breakdown[type] = { count: 0, color: c.color, name: Archetypes[type]?.name || type };
+            breakdown[type] = { count: 0, color: ARCHETYPE_COLORS[type] || c.color, name: Archetypes[type]?.name || type };
         }
         breakdown[type].count++;
     });
 
+    const sorted = Object.entries(breakdown).sort(([,a], [,b]) => b.count - a.count);
+    const maxCount = sorted.length > 0 ? sorted[0][1].count : 1;
+
+    // DOM-recycled breakdown (built programmatically for test compatibility)
     const breakdownList = document.getElementById('breakdownList');
-    breakdownList.innerHTML = '';
-    
-    Object.entries(breakdown)
-        .sort(([,a], [,b]) => b.count - a.count)
-        .forEach(([type, data]) => {
-            const item = document.createElement('div');
+    const existing = breakdownList.children;
+    let i = 0;
+    sorted.forEach(([type, data]) => {
+        let item;
+        if (i < existing.length) {
+            item = existing[i];
+        } else {
+            item = document.createElement('div');
             item.className = 'breakdown-item';
-            
-            const name = document.createElement('div');
-            name.className = 'breakdown-name';
-            
+
+            const bar = document.createElement('div');
+            bar.className = 'breakdown-bar';
+            item.appendChild(bar);
+            item._bar = bar;
+
+            const nameWrap = document.createElement('div');
+            nameWrap.className = 'breakdown-name';
             const dot = document.createElement('div');
             dot.className = 'breakdown-dot';
-            dot.style.background = data.color;
-            
-            name.appendChild(dot);
-            name.appendChild(document.createTextNode(data.name));
-            
+            nameWrap.appendChild(dot);
+            const text = document.createElement('span');
+            text.className = 'breakdown-text';
+            nameWrap.appendChild(text);
+            item.appendChild(nameWrap);
+            item._dot = dot;
+            item._text = text;
+
             const count = document.createElement('div');
             count.className = 'breakdown-count';
-            count.textContent = data.count;
-            
-            item.appendChild(name);
             item.appendChild(count);
+            item._count = count;
+
             breakdownList.appendChild(item);
+        }
+        if (item._bar) item._bar.style.width = ((data.count / maxCount) * 100) + '%';
+        if (item._bar) item._bar.style.background = data.color;
+        if (item._dot) item._dot.style.background = data.color;
+        if (item._text) item._text.textContent = data.name;
+        if (item._count) item._count.textContent = data.count;
+        i++;
+    });
+    // Remove excess items
+    while (breakdownList.children.length > sorted.length && breakdownList.removeChild) {
+        breakdownList.removeChild(breakdownList.lastChild);
+    }
+
+    // Record population history snapshot
+    const snapshot = { tick: World.tick, types: {}, totalBiomass };
+    World.colonies.forEach(c => {
+        const type = c.type || 'Unknown';
+        snapshot.types[type] = (snapshot.types[type] || 0) + 1;
+    });
+    PopHistory.push(snapshot);
+
+    // Draw population chart (throttled to every 3rd call)
+    _popChartFrame++;
+    if (_popChartFrame % 3 === 0) {
+        drawPopChart();
+    }
+
+    // Update health indicators
+    updateHealthIndicators(breakdown);
+}
+
+/* ===== Population Chart ===== */
+function drawPopChart() {
+    const canvas = document.getElementById('popChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const data = PopHistory.data;
+    if (data.length < 2) return;
+
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = '#0a1220';
+    ctx.fillRect(0, 0, W, H);
+
+    // Collect all archetype keys seen
+    const allTypes = new Set();
+    data.forEach(s => Object.keys(s.types).forEach(t => allTypes.add(t)));
+
+    // Find Y-axis max
+    let yMax = 1;
+    data.forEach(s => {
+        Object.values(s.types).forEach(v => { if (v > yMax) yMax = v; });
+    });
+    yMax = Math.ceil(yMax * 1.15); // 15% headroom
+
+    // Gridlines
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+    ctx.lineWidth = 1;
+    for (let g = 0.25; g < 1; g += 0.25) {
+        const gy = H - g * H;
+        ctx.beginPath();
+        ctx.moveTo(0, gy);
+        ctx.lineTo(W, gy);
+        ctx.stroke();
+    }
+
+    // Draw lines per archetype
+    const xStep = W / (data.length - 1);
+    allTypes.forEach(type => {
+        ctx.strokeStyle = ARCHETYPE_COLORS[type] || '#94a3b8';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        let started = false;
+        data.forEach((s, i) => {
+            const val = s.types[type] || 0;
+            const x = i * xStep;
+            const y = H - (val / yMax) * (H - 4);
+            if (!started) { ctx.moveTo(x, y); started = true; }
+            else ctx.lineTo(x, y);
         });
+        ctx.stroke();
+    });
+}
+
+/* ===== Health Indicators ===== */
+function updateHealthIndicators(breakdown) {
+    const types = Object.keys(breakdown);
+    const total = World.colonies.length;
+
+    // Shannon diversity index
+    let diversity = 0;
+    if (total > 0 && types.length > 1) {
+        let H = 0;
+        types.forEach(t => {
+            const p = breakdown[t].count / total;
+            if (p > 0) H -= p * Math.log(p);
+        });
+        const maxH = Math.log(types.length);
+        diversity = maxH > 0 ? Math.round((H / maxH) * 100) : 0;
+    } else if (total > 0 && types.length === 1) {
+        diversity = 0;
+    }
+
+    const divEl = document.getElementById('healthDiversityValue');
+    const divBadge = document.getElementById('healthDiversity');
+    if (divEl) {
+        divEl.textContent = total > 0 ? diversity + '%' : '--';
+        const cls = diversity >= 70 ? 'good' : diversity >= 40 ? 'moderate' : 'poor';
+        const prev = _lastHealthDiversity;
+        divBadge.className = 'health-badge ' + (total > 0 ? cls : '');
+        if (prev && prev !== cls && total > 0) {
+            divBadge.classList.add('pulse');
+            setTimeout(() => divBadge.classList.remove('pulse'), 600);
+        }
+        _lastHealthDiversity = total > 0 ? cls : '';
+    }
+
+    // Population stability (coefficient of variation over last 30 snapshots)
+    let stability = 0;
+    const hist = PopHistory.data;
+    const recent = hist.slice(-30);
+    if (recent.length >= 5) {
+        const counts = recent.map(s => Object.values(s.types).reduce((a, b) => a + b, 0));
+        const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
+        if (mean > 0) {
+            const variance = counts.reduce((s, v) => s + (v - mean) ** 2, 0) / counts.length;
+            const cv = Math.sqrt(variance) / mean;
+            stability = Math.round(Math.max(0, Math.min(100, (1 - cv) * 100)));
+        }
+    }
+
+    const stabEl = document.getElementById('healthStabilityValue');
+    const stabBadge = document.getElementById('healthStability');
+    if (stabEl) {
+        stabEl.textContent = hist.length >= 5 ? stability + '%' : '--';
+        const cls = stability >= 70 ? 'good' : stability >= 40 ? 'moderate' : 'poor';
+        const prev = _lastHealthStability;
+        stabBadge.className = 'health-badge ' + (hist.length >= 5 ? cls : '');
+        if (prev && prev !== cls && hist.length >= 5) {
+            stabBadge.classList.add('pulse');
+            setTimeout(() => stabBadge.classList.remove('pulse'), 600);
+        }
+        _lastHealthStability = hist.length >= 5 ? cls : '';
+    }
 }
 
 /* ===== Archetype Tooltips ===== */
@@ -577,6 +794,7 @@ function loadJSON(e) {
             if (data.rngState) {
                 World.setRNGState(data.rngState);
             }
+            PopHistory.clear();
             refreshLiveStats();
             clearOverlayCache(); // Clear overlay cache since world state changed
             needRedraw = true;

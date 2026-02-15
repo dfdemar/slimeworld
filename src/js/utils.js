@@ -133,14 +133,13 @@ function percentile(arr, p) {
 
 function notify(msg, level = 'info', ttl = 1600) {
     const el = document.getElementById('alert');
-    el.className = '';
+    el.className = 'show';
     if (level === 'warn') el.classList.add('warn');
     if (level === 'error') el.classList.add('error');
     el.textContent = msg;
-    el.style.display = 'block';
     clearTimeout(notify._t);
     notify._t = setTimeout(() => {
-        el.style.display = 'none'
+        el.className = '';
     }, ttl);
 }
 
