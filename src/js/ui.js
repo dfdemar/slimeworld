@@ -470,8 +470,8 @@ function randomizeColonyAppearance(colonyId) {
     const colony = World.colonies.find(c => c.id === colonyId);
     if (!colony) return;
     
-    // Generate new random color
-    colony.color = `hsl(${World.rng() * 360}, 70%, 50%)`;
+    // Generate new random color (space-separated HSL to match codebase format)
+    colony.color = `hsl(${(World.rng() * 360).toFixed(1)} 70.0% 50.0%)`;
     
     // Generate new pattern
     colony.pattern = createPatternForColony(colony);

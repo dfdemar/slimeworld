@@ -77,10 +77,16 @@ function starvationSweep() {
             World.tiles[i] = -1;
             continue;
         }
-        const n = nutrient[i], l = light[i], ps = col.traits.photosym || 0;
-        // Enhanced energy formula: give non-photosynthetic archetypes bonus nutrient efficiency
-        const nonPhotoBonus = ps < 0.1 ? NON_PHOTOSYNTHETIC_BONUS * (1 - ps * 10) : 0; // Bonus decreases as photosym increases
-        const energy = 0.7 * n + 0.3 * ps * l + nonPhotoBonus * n;
+        const n = nutrient[i], l = light[i], h = World.env.humidity[i];
+        const ps = col.traits.photosym || 0;
+        const wn = col.traits.water_need || 0.5;
+        const lu = col.traits.light_use || 0.5;
+        // Environmental fitness: how well this colony's traits match the local environment
+        const waterFit = 1.0 - Math.abs(h - wn);
+        const lightFit = ps > 0 ? (1.0 - Math.abs(l - lu)) * ps : (1.0 - 0.4 * l);
+        // Non-photosynthetic bonus for nutrient efficiency
+        const nonPhotoBonus = ps < 0.1 ? NON_PHOTOSYNTHETIC_BONUS * (1 - ps * 10) : 0;
+        const energy = 0.40 * n + 0.25 * lightFit * l + 0.20 * waterFit + 0.15 * nonPhotoBonus * n;
         const cons = Math.min(n, 0.008 * Math.max(0.1, World.biomass[i]));
         nutrient[i] = clamp(n - cons, 0, 1);
         if (energy < 0.35) {
@@ -108,9 +114,14 @@ function nutrientDynamics() {
         for (let x = 0; x < W; x++) {
             const i = y * W + x;
             const n = nutrient[i];
-            const l = nutrient[y * W + ((x - 1 + W) % W)], r = nutrient[y * W + ((x + 1) % W)],
-                u = nutrient[((y - 1 + H) % H) * W + x], d = nutrient[((y + 1 + H) % H) * W + x];
-            const mixed = (1 - diff) * n + (diff * 0.25) * (l + r + u + d);
+            let neighborSum = 0;
+            let neighborCount = 0;
+            if (x > 0)     { neighborSum += nutrient[y * W + (x - 1)]; neighborCount++; }
+            if (x < W - 1) { neighborSum += nutrient[y * W + (x + 1)]; neighborCount++; }
+            if (y > 0)     { neighborSum += nutrient[(y - 1) * W + x]; neighborCount++; }
+            if (y < H - 1) { neighborSum += nutrient[(y + 1) * W + x]; neighborCount++; }
+            const avg = neighborCount > 0 ? neighborSum / neighborCount : n;
+            const mixed = (1 - diff) * n + diff * avg;
             const target = clamp(0.2 + 0.6 * humidity[i] + 0.2 * water[i], 0, 1);
             Nn[i] = clamp(mixed + regen * (target - mixed), 0, 1);
         }
@@ -221,7 +232,7 @@ function suitabilityAt(col, x, y) {
     raftBonus += (B.waterAffinity && w) ? B.waterAffinity : 0;
     let towerPenalty = (col.type === 'TOWER' && w) ? -0.12 : 0;
     
-    const base = clamp(0.06 * waterFit + 0.06 * lightFit + 0.88 * chemo + raftBonus + towerPenalty, 0, 1);
+    const base = clamp(0.25 * waterFit + 0.25 * lightFit + 0.50 * chemo + raftBonus + towerPenalty, 0, 1);
     
     // Capacity pressure with validation
     const cap = Math.max(0.1, World.capacity || 1.0);
@@ -245,7 +256,8 @@ function suitabilityAt(col, x, y) {
 function tryExpand(col) {
     const B = TypeBehavior[col.type] || TypeBehavior.MAT;
     const cx = col.x, cy = col.y;
-    const r = B.senseR || 5;
+    const transport = clamp(col.traits.transport || 0.5, 0.1, 1);
+    const r = Math.max(2, Math.round((B.senseR || 5) * transport));
     let best = null, bestScore = -1, bestI = -1;
     for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
@@ -263,9 +275,9 @@ function tryExpand(col) {
                 if (foe === -1) ok = true; else if (foe === col.id) ok = false; else {
                     const enemy = World.colonies.find(c => c.id === foe);
                     if (!enemy) ok = true; else {
-                        const pred = col.traits.predation - (enemy.traits.defense * 0.7);
+                        const pred = col.traits.predation - enemy.traits.defense;
                         const comp = s - suitabilityAt(enemy, nx, ny);
-                        ok = (pred + comp) > randRange(World.rng, -0.15, 0.1);
+                        ok = (pred + comp) > randRange(World.rng, -0.12, 0.12);
                     }
                 }
                 if (ok) {
@@ -318,27 +330,28 @@ function stepEcosystem() {
                     c.biomass = clamp(c.biomass + 0.01, 0, 3);
                 }
                 const pressure = World.typePressure[c.type] ?? 1;
-                const spawnP = (0.003 + 0.008 * World.mutationRate) * pressure;
+                const sporeRate = clamp(c.traits.spore || 0.5, 0.1, 1);
+                const spawnP = (0.003 + 0.008 * World.mutationRate) * pressure * sporeRate;
                 if (c.biomass > 0.8 && c.lastFit > 0.55 && World.rng() < spawnP) {
                     const dir = [[1, 0], [-1, 0], [0, 1], [0, -1]][Math.floor(World.rng() * 4)];
                     const bx = clampX(Math.round(c.x + dir[0] * 2));
                     const by = clampY(Math.round(c.y + dir[1] * 2));
-                    const child = {...c};
-                    child.id = World.nextId++;
-                    child.parent = c.id;
-                    child.gen = c.gen + 1;
-                    child.kids = [];
-                    child.age = 0;
-                    child.x = bx;
-                    child.y = by;
-                    child.biomass = 0.6;
-                    child.traits = mutateTraits(c.traits);
-                    child.color = jitterColor(c.color, 14);
-                    child.pattern = createPatternForColony(child);
-                    World.colonies.push(child);
-                    c.kids.push(child.id);
                     const bi = idx(bx, by);
                     if (World.tiles[bi] === -1) {
+                        const child = {...c};
+                        child.id = World.nextId++;
+                        child.parent = c.id;
+                        child.gen = c.gen + 1;
+                        child.kids = [];
+                        child.age = 0;
+                        child.x = bx;
+                        child.y = by;
+                        child.biomass = 0.6;
+                        child.traits = mutateTraits(c.traits);
+                        child.color = jitterColor(c.color, 14);
+                        child.pattern = createPatternForColony(child);
+                        World.colonies.push(child);
+                        c.kids.push(child.id);
                         World.tiles[bi] = child.id;
                         World.biomass[bi] = 0.4;
                         Slime.trail[bi] += (TypeBehavior[c.type]?.deposit || 0.5);

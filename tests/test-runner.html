@@ -112,6 +112,7 @@
     <button id="runEcosystemTests">Run Ecosystem Tests</button>
     <button id="runEnvironmentTests">Run Environment Tests</button>
     <button id="runBugFixTests">Run Bug Fix Tests</button>
+    <button id="runBalanceFixTests">Run Balance Fix Tests</button>
     <button id="runUITests">Run UI Tests</button>
     <button id="clearResults">Clear Results</button>
 </div>
@@ -168,6 +169,9 @@
 <script src="../src/js/ecosystem.js"></script>
 <script src="../src/js/renderer.js"></script>
 <script src="../src/js/ui.js"></script>
+<script src="../src/js/trait-system.js"></script>
+<script src="../src/js/extended-archetypes.js"></script>
+<script src="../src/js/integration.js"></script>
 
 <!-- Load test files -->
 <script src="test-utils.js"></script>
@@ -179,6 +183,7 @@
 <script src="test-ui.js"></script>
 <script src="test-signals.js"></script>
 <script src="test-colony-states.js"></script>
+<script src="test-balance-fixes.js"></script>
 
 <script>
     // Test runner UI
@@ -256,7 +261,8 @@
             {name: 'Bug Fix Tests', fn: runBugFixTests},
             {name: 'UI Tests', fn: runUITests},
             {name: 'Signal Tests', fn: runSignalTests},
-            {name: 'Colony State Tests', fn: runColonyStateTests}
+            {name: 'Colony State Tests', fn: runColonyStateTests},
+            {name: 'Balance Fix Tests', fn: runBalanceFixTests}
         ];
 
         for (const suite of testSuites) {
@@ -277,6 +283,7 @@
     document.getElementById('runEcosystemTests').addEventListener('click', () => runTestSuite('Ecosystem Tests', runEcosystemTests).then(showSummary));
     document.getElementById('runEnvironmentTests').addEventListener('click', () => runTestSuite('Environment Tests', runEnvironmentTests).then(showSummary));
     document.getElementById('runBugFixTests').addEventListener('click', () => runTestSuite('Bug Fix Tests', runBugFixTests).then(showSummary));
+    document.getElementById('runBalanceFixTests').addEventListener('click', () => runTestSuite('Balance Fix Tests', runBalanceFixTests).then(showSummary));
     document.getElementById('runUITests').addEventListener('click', () => runTestSuite('UI Tests', runUITests).then(showSummary));
     document.getElementById('clearResults').addEventListener('click', clearResults);
 </script>
