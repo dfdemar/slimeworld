@@ -122,6 +122,14 @@ function createTestWorld(width = 32, height = 24) {
     Slime.trail = new Float32Array(width * height).fill(0);
     Slime.trailNext = new Float32Array(width * height).fill(0);
 
+    // Initialize signal buffers
+    World.signals = {
+        stress: new Float32Array(width * height).fill(0),
+        aggregation: new Float32Array(width * height).fill(0),
+        stressBuf: new Float32Array(width * height).fill(0),
+        aggregationBuf: new Float32Array(width * height).fill(0)
+    };
+
     // Mock notify function to prevent DOM errors during tests
     if (typeof window !== 'undefined' && !window.notify) {
         window.notify = () => {

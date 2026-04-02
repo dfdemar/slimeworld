@@ -32,10 +32,15 @@ const Slime = {
         for (let y = 0; y < H; y++) {
             for (let x = 0; x < W; x++) {
                 const i = y * W + x;
-                const l = T[y * W + ((x - 1 + W) % W)] || 0, r = T[y * W + ((x + 1) % W)] || 0,
-                    u = T[((y - 1 + H) % H) * W + x] || 0, d = T[((y + 1) % H) * W + x] || 0;
                 const self = T[i] || 0;
-                const mixed = (1 - diff) * self + (diff * 0.25) * (l + r + u + d);
+                let neighborSum = 0;
+                let neighborCount = 0;
+                if (x > 0)     { neighborSum += T[y * W + (x - 1)] || 0; neighborCount++; }
+                if (x < W - 1) { neighborSum += T[y * W + (x + 1)] || 0; neighborCount++; }
+                if (y > 0)     { neighborSum += T[(y - 1) * W + x] || 0; neighborCount++; }
+                if (y < H - 1) { neighborSum += T[(y + 1) * W + x] || 0; neighborCount++; }
+                const avg = neighborCount > 0 ? neighborSum / neighborCount : self;
+                const mixed = (1 - diff) * self + diff * avg;
                 N[i] = mixed * evap;
             }
         }
@@ -73,24 +78,32 @@ const Signals = {
         for (let y = 0; y < H; y++) {
             for (let x = 0; x < W; x++) {
                 const i = y * W + x;
-                const l = stress[y * W + ((x - 1 + W) % W)] || 0, r = stress[y * W + ((x + 1) % W)] || 0,
-                    u = stress[((y - 1 + H) % H) * W + x] || 0, d = stress[((y + 1) % H) * W + x] || 0;
                 const self = stress[i] || 0;
-                const mixed = (1 - diff) * self + (diff * 0.25) * (l + r + u + d);
-                stressBuf[i] = mixed * evap;
+                let neighborSum = 0;
+                let neighborCount = 0;
+                if (x > 0)     { neighborSum += stress[y * W + (x - 1)] || 0; neighborCount++; }
+                if (x < W - 1) { neighborSum += stress[y * W + (x + 1)] || 0; neighborCount++; }
+                if (y > 0)     { neighborSum += stress[(y - 1) * W + x] || 0; neighborCount++; }
+                if (y < H - 1) { neighborSum += stress[(y + 1) * W + x] || 0; neighborCount++; }
+                const avg = neighborCount > 0 ? neighborSum / neighborCount : self;
+                stressBuf[i] = ((1 - diff) * self + diff * avg) * evap;
             }
         }
-        
+
         // Aggregation signals diffusion
         const aggregation = World.signals.aggregation, aggregationBuf = World.signals.aggregationBuf;
         for (let y = 0; y < H; y++) {
             for (let x = 0; x < W; x++) {
                 const i = y * W + x;
-                const l = aggregation[y * W + ((x - 1 + W) % W)] || 0, r = aggregation[y * W + ((x + 1) % W)] || 0,
-                    u = aggregation[((y - 1 + H) % H) * W + x] || 0, d = aggregation[((y + 1) % H) * W + x] || 0;
                 const self = aggregation[i] || 0;
-                const mixed = (1 - diff) * self + (diff * 0.25) * (l + r + u + d);
-                aggregationBuf[i] = mixed * evap;
+                let neighborSum = 0;
+                let neighborCount = 0;
+                if (x > 0)     { neighborSum += aggregation[y * W + (x - 1)] || 0; neighborCount++; }
+                if (x < W - 1) { neighborSum += aggregation[y * W + (x + 1)] || 0; neighborCount++; }
+                if (y > 0)     { neighborSum += aggregation[(y - 1) * W + x] || 0; neighborCount++; }
+                if (y < H - 1) { neighborSum += aggregation[(y + 1) * W + x] || 0; neighborCount++; }
+                const avg = neighborCount > 0 ? neighborSum / neighborCount : self;
+                aggregationBuf[i] = ((1 - diff) * self + diff * avg) * evap;
             }
         }
         

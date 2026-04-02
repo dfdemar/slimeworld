@@ -9,7 +9,7 @@
 <body>
 <header>
     <h1>Slimeworld Evolution Simulator</h1>
-    <span class="pill">v2.5 • UI redesign + enhanced inspector</span>
+    <span class="pill">v2.7 • visual polish + live charts</span>
     <span id="status" class="small"></span>
     <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
         <button id="btnPause">⏸️ Pause</button>
@@ -68,7 +68,7 @@
         </div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="statsPanel">
         <h2>Live Stats</h2>
         <div id="liveStats" class="live-stats">
             <div class="stat-row">
@@ -91,6 +91,23 @@
         <div class="archetype-breakdown" id="archetypeBreakdown">
             <h3 class="breakdown-title">Population by Type</h3>
             <div class="breakdown-list" id="breakdownList"></div>
+        </div>
+        <div class="pop-chart-section">
+            <h3 class="breakdown-title">Population History</h3>
+            <canvas id="popChart" width="320" height="120"></canvas>
+        </div>
+        <div class="health-section">
+            <h3 class="breakdown-title">Ecosystem Health</h3>
+            <div class="health-indicators" id="healthIndicators">
+                <div class="health-badge" id="healthDiversity">
+                    <span class="health-label">Diversity</span>
+                    <span class="health-value" id="healthDiversityValue">--</span>
+                </div>
+                <div class="health-badge" id="healthStability">
+                    <span class="health-label">Stability</span>
+                    <span class="health-value" id="healthStabilityValue">--</span>
+                </div>
+            </div>
         </div>
     </div>
 

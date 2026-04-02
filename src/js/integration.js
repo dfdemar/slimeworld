@@ -289,24 +289,18 @@ function stepUnifiedEcosystem() {
 
                 // Reproduction
                 const pressure = World.typePressure[c.type] ?? 1;
-                const spawnP = (0.003 + 0.008 * World.mutationRate) * pressure;
+                const sporeRate = clamp(c.traits.spore || 0.5, 0.1, 1);
+                const spawnP = (0.003 + 0.008 * World.mutationRate) * pressure * sporeRate;
 
                 if (c.biomass > 0.8 && c.lastFit > 0.55 && World.rng() < spawnP) {
                     const dir = [[1, 0], [-1, 0], [0, 1], [0, -1]][Math.floor(World.rng() * 4)];
                     const bx = clampX(Math.round(c.x + dir[0] * 2));
                     const by = clampY(Math.round(c.y + dir[1] * 2));
-
-                    const child = createUnifiedColony(c.type, bx, by, c);
-                    if (child) {
-                        c.kids.push(child.id);
-                        const bi = idx(bx, by);
-                        if (World.tiles[bi] === -1) {
-                            World.tiles[bi] = child.id;
-                            World.biomass[bi] = 0.4;
-
-                            const behaviors = SystemConfig.useModularTraits && child.archetype ?
-                                child.archetype.behaviors : TypeBehavior[c.type];
-                            Slime.trail[bi] += (behaviors?.deposit || 0.5);
+                    const bi = idx(bx, by);
+                    if (World.tiles[bi] === -1) {
+                        const child = createUnifiedColony(c.type, bx, by, c);
+                        if (child) {
+                            c.kids.push(child.id);
                         }
                     }
                 }
@@ -315,6 +309,7 @@ function stepUnifiedEcosystem() {
 
         // Standard ecosystem processes
         Slime.diffuseEvaporate();
+        Signals.diffuseEvaporate();
         starvationSweep();
         nutrientDynamics();
 
